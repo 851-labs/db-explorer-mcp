@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   connect as dbConnect,
+  getDialect,
   getKnex,
   query,
   redactConnectionString,
@@ -160,6 +161,18 @@ server.tool(
   }
 );
 
+// Dialect-aware error hint for failed queries
+function dialectHint(): string {
+  try {
+    const d = getDialect();
+    if (d === 'mysql2') return ' (MySQL — use DATE_SUB(), CURDATE(), IFNULL, backtick-quoted identifiers)';
+    if (d === 'pg') return ' (PostgreSQL — use CURRENT_DATE - INTERVAL, COALESCE, double-quoted identifiers)';
+    return ' (SQLite — use date(), julianday(), IFNULL, no GROUP BY alias references)';
+  } catch {
+    return '';
+  }
+}
+
 // Tool: Execute query
 const MAX_QUERY_ROWS = 1000;
 
@@ -206,7 +219,7 @@ server.tool(
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Query execution failed';
-      return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+      return { content: [{ type: 'text', text: `Error: ${message}${dialectHint()}` }], isError: true };
     }
   }
 );
@@ -317,7 +330,7 @@ registerAppTool(
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Chart query failed';
-      return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+      return { content: [{ type: 'text', text: `Error: ${message}${dialectHint()}` }], isError: true };
     }
   }
 );

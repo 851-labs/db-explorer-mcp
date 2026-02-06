@@ -1,5 +1,9 @@
 import { getDialect, query, type Dialect } from './database.js';
 
+function dialectName(d: Dialect): string {
+  return d === 'pg' ? 'PostgreSQL' : d === 'mysql2' ? 'MySQL' : 'SQLite';
+}
+
 interface ColumnInfo {
   name: string;
   type: string;
@@ -104,7 +108,7 @@ export async function listTables(): Promise<string> {
     `${t.name.padEnd(maxNameLen)}  ${t.estimatedRows.toLocaleString()}`
   );
 
-  return [header, separator, ...rows].join('\n');
+  return [`Database: ${dialectName(dialect)}`, '', header, separator, ...rows].join('\n');
 }
 
 // ===== Describe Table =====
@@ -305,7 +309,7 @@ export async function describeTable(tableName: string): Promise<string> {
   else if (dialect === 'mysql2') desc = await describeTableMysql(tableName);
   else desc = await describeTableSqlite(tableName);
 
-  const lines: string[] = [`Table: ${desc.name}`, ''];
+  const lines: string[] = [`Table: ${desc.name} (${dialectName(dialect)})`, ''];
 
   // Columns
   lines.push('Columns:');
