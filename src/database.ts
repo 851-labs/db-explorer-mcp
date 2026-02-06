@@ -5,16 +5,46 @@ let currentDialect: 'pg' | 'mysql2' | 'better-sqlite3' | null = null;
 
 export type Dialect = 'pg' | 'mysql2' | 'better-sqlite3';
 
-export function parseConnectionString(str: string): { client: Dialect; connection: string | { filename: string } } {
+function isHostedProvider(hostname: string): boolean {
+  const providers = ['psdb.cloud', 'aivencloud.com', 'amazonaws.com', 'azure.com', 'cloud.google.com', 'neon.tech', 'supabase.co', 'planetscale.com'];
+  return providers.some(p => hostname.endsWith(p));
+}
+
+export function parseConnectionString(str: string): { client: Dialect; connection: any } {
   const trimmed = str.trim();
 
   // PostgreSQL
   if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) {
+    const url = new URL(trimmed);
+    const ssl = url.searchParams.get('ssl') || url.searchParams.get('sslmode');
+    if (ssl && ssl !== 'disable' && ssl !== 'false') {
+      url.searchParams.delete('ssl');
+      url.searchParams.delete('sslmode');
+      return { client: 'pg', connection: { connectionString: url.toString(), ssl: { rejectUnauthorized: ssl !== 'no-verify' } } };
+    }
     return { client: 'pg', connection: trimmed };
   }
 
   // MySQL
   if (trimmed.startsWith('mysql://')) {
+    const url = new URL(trimmed);
+    const ssl = url.searchParams.get('ssl');
+    // Auto-enable SSL for known hosted providers
+    const needsSsl = ssl || isHostedProvider(url.hostname);
+    if (needsSsl) {
+      url.searchParams.delete('ssl');
+      return {
+        client: 'mysql2',
+        connection: {
+          host: url.hostname,
+          port: parseInt(url.port || '3306'),
+          user: url.username,
+          password: decodeURIComponent(url.password),
+          database: url.pathname.slice(1),
+          ssl: { rejectUnauthorized: true },
+        },
+      };
+    }
     return { client: 'mysql2', connection: trimmed };
   }
 
