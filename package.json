@@ -1,6 +1,6 @@
 {
   "name": "db-explorer-mcp",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Connect to any SQL database (PostgreSQL, MySQL, SQLite) and explore schemas, run queries, and visualize results with interactive charts.",
   "type": "module",
   "main": "dist/server.js",
