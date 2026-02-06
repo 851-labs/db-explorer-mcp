@@ -15,7 +15,8 @@
     "build": "bun build src/server.ts --outdir dist --target node --format esm --external knex --external pg --external mysql2 --external better-sqlite3 --external @modelcontextprotocol/* --external zod && INPUT=chart-app.html vite build",
     "prepack": "bun run build",
     "start": "node dist/server.js",
-    "dev": "bun src/server.ts"
+    "dev": "bun src/server.ts",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "mcp",
