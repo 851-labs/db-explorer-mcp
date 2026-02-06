@@ -20,6 +20,7 @@ import {
   describeTable,
   getFullSchema,
 } from './introspection.js';
+import { explainQuery, formatExplainResult } from './explain.js';
 
 console.error('DB Explorer MCP Server starting...');
 
@@ -124,7 +125,9 @@ server.tool(
 // Tool: Describe table
 server.tool(
   'describe_table',
-  'Get columns, types, constraints, foreign keys, and indexes for a specific table',
+  'Get columns, types, constraints, foreign keys, and indexes for a specific table. ' +
+  'Review indexes before writing queries to identify which columns can be filtered ' +
+  'and sorted efficiently, and use foreign keys to determine JOIN conditions.',
   {
     table: z.string().describe('Table name to describe'),
   },
@@ -162,7 +165,11 @@ const MAX_QUERY_ROWS = 1000;
 
 server.tool(
   'query',
-  `Execute a read-only SQL query. Returns JSON array of results (max ${MAX_QUERY_ROWS} rows).`,
+  `Execute a read-only SQL query. Returns JSON array of results (max ${MAX_QUERY_ROWS} rows). ` +
+  'Use JOINs to fetch related data in a single query instead of making multiple ' +
+  'separate queries. Filter and sort on indexed columns when possible — use ' +
+  'describe_table to check available indexes. Always include a LIMIT clause unless you ' +
+  'need all rows. For complex queries, use explain_query first to verify the plan uses indexes.',
   {
     sql: z.string().describe('SELECT or WITH query to execute'),
   },
@@ -199,6 +206,41 @@ server.tool(
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Query execution failed';
+      return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+    }
+  }
+);
+
+// Tool: Explain query
+server.tool(
+  'explain_query',
+  'Show the execution plan for a SELECT query without running it. ' +
+  'Returns which indexes are used, estimated rows, and warnings about sequential scans. ' +
+  'Use this before running expensive queries to verify they use indexes efficiently.',
+  {
+    sql: z.string().describe('SELECT or WITH query to analyze'),
+  },
+  async ({ sql }) => {
+    try {
+      await ensureConnection();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Not connected';
+      return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true };
+    }
+
+    const trimmed = sql.trim().toUpperCase();
+    if (!trimmed.startsWith('SELECT') && !trimmed.startsWith('WITH')) {
+      return {
+        content: [{ type: 'text', text: 'Error: Only SELECT and WITH (CTE) queries are allowed' }],
+        isError: true,
+      };
+    }
+
+    try {
+      const result = await explainQuery(sql);
+      return { content: [{ type: 'text', text: formatExplainResult(result) }] };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Explain failed';
       return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
     }
   }

@@ -39,6 +39,7 @@
     { "name": "describe_table", "description": "Describe columns, types, constraints, and foreign keys for a table" },
     { "name": "get_schema", "description": "Get the full database schema with relationships" },
     { "name": "query", "description": "Execute a read-only SQL query" },
+    { "name": "explain_query", "description": "Show execution plan and index usage for a query" },
     { "name": "chart", "description": "Render an interactive chart from query results" }
   ]
 }

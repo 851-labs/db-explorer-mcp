@@ -18,6 +18,10 @@ interface IndexInfo {
   name: string;
   columns: string[];
   unique: boolean;
+  type: string | null;
+  isPrimary: boolean;
+  cardinality: number | null;
+  partial: string | null;
 }
 
 interface TableDescription {
@@ -138,17 +142,24 @@ async function describeTablePg(tableName: string): Promise<TableDescription> {
   `, [tableName]);
 
   // Indexes
-  const idxs = await query<{ name: string; unique: boolean; columns: string[] }>(`
+  const idxs = await query<{ name: string; unique: boolean; isPrimary: boolean; type: string; columns: string[]; partial: string | null; cardinality: string | null }>(`
     SELECT
       i.relname AS name,
       ix.indisunique AS "unique",
-      array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns
+      ix.indisprimary AS "isPrimary",
+      am.amname AS type,
+      array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns,
+      pg_get_expr(ix.indpred, ix.indrelid) AS partial,
+      ic.reltuples::bigint AS cardinality
     FROM pg_index ix
     JOIN pg_class t ON t.oid = ix.indrelid
     JOIN pg_class i ON i.oid = ix.indexrelid
+    JOIN pg_class ic ON ic.oid = ix.indexrelid
+    JOIN pg_am am ON am.oid = i.relam
     JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
     WHERE t.relname = ?
-    GROUP BY i.relname, ix.indisunique
+    GROUP BY i.relname, ix.indisunique, ix.indisprimary, am.amname,
+             ix.indpred, ix.indrelid, ic.reltuples
   `, [tableName]);
 
   return {
@@ -168,7 +179,11 @@ async function describeTablePg(tableName: string): Promise<TableDescription> {
     indexes: idxs.map((r) => ({
       name: r.name,
       columns: r.columns,
-      unique: r.unique,
+      unique: Boolean(r.unique),
+      type: r.type,
+      isPrimary: Boolean(r.isPrimary),
+      cardinality: r.cardinality != null ? Number(r.cardinality) : null,
+      partial: r.partial ?? null,
     })),
   };
 }
@@ -199,14 +214,17 @@ async function describeTableMysql(tableName: string): Promise<TableDescription> 
   `, [tableName]);
 
   // Indexes
-  const idxRows = await query<{ name: string; unique: number; columns: string }>(`
+  const idxRows = await query<{ name: string; unique: number; isPrimary: number; type: string; columns: string; cardinality: number | null }>(`
     SELECT
       INDEX_NAME AS name,
       NOT NON_UNIQUE AS \`unique\`,
-      GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS columns
+      INDEX_NAME = 'PRIMARY' AS isPrimary,
+      INDEX_TYPE AS type,
+      GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS columns,
+      MAX(CARDINALITY) AS cardinality
     FROM information_schema.STATISTICS
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
-    GROUP BY INDEX_NAME, NON_UNIQUE
+    GROUP BY INDEX_NAME, NON_UNIQUE, INDEX_TYPE
   `, [tableName]);
 
   return {
@@ -227,6 +245,10 @@ async function describeTableMysql(tableName: string): Promise<TableDescription> 
       name: r.name,
       columns: (r.columns || '').split(','),
       unique: Boolean(r.unique),
+      type: r.type,
+      isPrimary: Boolean(r.isPrimary),
+      cardinality: r.cardinality != null ? Number(r.cardinality) : null,
+      partial: null,
     })),
   };
 }
@@ -251,14 +273,24 @@ async function describeTableSqlite(tableName: string): Promise<TableDescription>
   }));
 
   // Indexes
-  const pragmaIdxs = await query<{ name: string; unique: number }>(`PRAGMA index_list("${tableName}")`);
+  const pragmaIdxs = await query<{ name: string; unique: number; origin: string; partial: number }>(`PRAGMA index_list("${tableName}")`);
   const indexes: IndexInfo[] = [];
   for (const idx of pragmaIdxs) {
     const idxInfo = await query<{ name: string }>(`PRAGMA index_info("${idx.name}")`);
+    let partialExpr: string | null = null;
+    if (idx.partial) {
+      const sqlRow = await query<{ sql: string }>(`SELECT sql FROM sqlite_master WHERE name = ?`, [idx.name]);
+      const match = sqlRow[0]?.sql?.match(/WHERE\s+(.+)$/i);
+      partialExpr = match?.[1] ?? null;
+    }
     indexes.push({
       name: idx.name,
       columns: idxInfo.map((c) => c.name),
       unique: idx.unique === 1,
+      type: null,
+      isPrimary: idx.origin === 'pk',
+      cardinality: null,
+      partial: partialExpr,
     });
   }
 
@@ -302,8 +334,14 @@ export async function describeTable(tableName: string): Promise<string> {
     lines.push('');
     lines.push('Indexes:');
     for (const idx of desc.indexes) {
-      const uniq = idx.unique ? ' (UNIQUE)' : '';
-      lines.push(`  ${idx.name}: (${idx.columns.join(', ')})${uniq}`);
+      const flags: string[] = [];
+      if (idx.isPrimary) flags.push('primary');
+      if (idx.unique && !idx.isPrimary) flags.push('unique');
+      if (idx.cardinality != null && idx.cardinality > 0) flags.push(`~${idx.cardinality.toLocaleString()} distinct`);
+      if (idx.partial) flags.push(`partial: ${idx.partial}`);
+      const typeStr = idx.type ?? '';
+      const parts = [typeStr, ...flags].filter(Boolean).join(', ');
+      lines.push(`  ${idx.name}: (${idx.columns.join(', ')}) ${parts}`);
     }
   }
 
