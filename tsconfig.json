@@ -11,6 +11,6 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*", "ui/**/*"],
+  "include": ["src/**/*", "ui/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "dist"]
 }
