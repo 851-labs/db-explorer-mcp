@@ -112,7 +112,7 @@ function Chart({ config }: { config: ChartConfig }) {
   if (chartType === "pie") {
     return e(
       ResponsiveContainer,
-      { width: "100%", height: "100%" },
+      { width: "100%", height: "100%" } as any,
       e(
         PieChart,
         {},
@@ -132,9 +132,9 @@ function Chart({ config }: { config: ChartConfig }) {
               name,
               percent,
             }: {
-              name: string;
-              percent: number;
-            }) => name + " (" + (percent * 100).toFixed(0) + "%)",
+              name?: string;
+              percent?: number;
+            }) => (name ?? "") + " (" + ((percent ?? 0) * 100).toFixed(0) + "%)",
           },
           data.map((_, i) =>
             e(Cell, { key: i, fill: CHART_PALETTE[i % CHART_PALETTE.length] })
@@ -157,7 +157,7 @@ function Chart({ config }: { config: ChartConfig }) {
 
   return e(
     ResponsiveContainer,
-    { width: "100%", height: "100%" },
+    { width: "100%", height: "100%" } as any,
     e(
       ChartComponent,
       commonProps,
