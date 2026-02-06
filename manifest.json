@@ -1,0 +1,36 @@
+{
+  "manifest_version": "0.3",
+  "name": "db-explorer",
+  "version": "1.0.0",
+  "description": "Connect to any SQL database (PostgreSQL, MySQL, SQLite) and explore schemas, run queries, and visualize results with interactive charts.",
+  "author": {
+    "name": "DB Explorer MCP"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "dist/server.js",
+    "mcp_config": {
+      "command": "npx",
+      "args": ["db-explorer-mcp"],
+      "env": {
+        "DB_CONNECTION_STRING": "${user_config.connection_string}"
+      }
+    }
+  },
+  "user_config": {
+    "connection_string": {
+      "type": "string",
+      "title": "Database Connection String",
+      "description": "Connection string for your database (e.g. postgres://user:pass@host/db, mysql://user:pass@host/db, sqlite:///path/to/file.db). You can also connect at runtime using the connect tool.",
+      "required": false
+    }
+  },
+  "tools": [
+    { "name": "connect", "description": "Connect to a database via connection string" },
+    { "name": "list_tables", "description": "List all tables with estimated row counts" },
+    { "name": "describe_table", "description": "Describe columns, types, constraints, and foreign keys for a table" },
+    { "name": "get_schema", "description": "Get the full database schema with relationships" },
+    { "name": "query", "description": "Execute a read-only SQL query" },
+    { "name": "chart", "description": "Render an interactive chart from query results" }
+  ]
+}

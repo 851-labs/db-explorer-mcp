@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>DB Explorer Chart</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --foreground: #3d3929;
+      --muted: rgba(0, 0, 0, 0.06);
+      --muted-foreground: rgba(0, 0, 0, 0.45);
+      --tooltip-bg: #fff;
+      --tooltip-border: rgba(0, 0, 0, 0.08);
+      --tooltip-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      --grid-stroke: rgba(0, 0, 0, 0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --foreground: rgba(255, 255, 255, 0.9);
+        --muted: rgba(255, 255, 255, 0.06);
+        --muted-foreground: rgba(255, 255, 255, 0.4);
+        --tooltip-bg: #2a2a2a;
+        --tooltip-border: rgba(255, 255, 255, 0.08);
+        --tooltip-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        --grid-stroke: rgba(255, 255, 255, 0.06);
+      }
+    }
+    body {
+      font-family: "Styrene B", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: transparent;
+      color: var(--foreground);
+      padding: 16px 0;
+    }
+    .chart-wrapper {
+      width: 100%;
+      max-width: 720px;
+    }
+    .chart-header { margin-bottom: 12px; }
+    .chart-title {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--foreground);
+    }
+    .chart-description {
+      font-size: 13px;
+      color: var(--muted-foreground);
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+    .chart-container { width: 100%; height: 320px; }
+    .recharts-cartesian-grid-horizontal line,
+    .recharts-cartesian-grid-vertical line { stroke: var(--grid-stroke); }
+    .recharts-text { fill: var(--muted-foreground); font-size: 11px; }
+    .recharts-legend-item-text { font-size: 12px !important; }
+    .recharts-default-legend { margin-top: 8px !important; }
+    .custom-tooltip {
+      background: var(--tooltip-bg);
+      border: 1px solid var(--tooltip-border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      box-shadow: var(--tooltip-shadow);
+      font-size: 13px;
+    }
+    .tooltip-label {
+      font-weight: 600;
+      margin-bottom: 2px;
+      font-size: 12px;
+      color: var(--foreground);
+    }
+    .tooltip-value {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: var(--muted-foreground);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"><div class="loading">Loading chart...</div></div>
+  <script type="module" src="/ui/chart-app.ts"></script>
+</body>
+</html>

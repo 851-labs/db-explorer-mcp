@@ -1,0 +1,56 @@
+{
+  "name": "db-explorer-mcp",
+  "version": "1.0.0",
+  "description": "Connect to any SQL database (PostgreSQL, MySQL, SQLite) and explore schemas, run queries, and visualize results with interactive charts.",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "db-explorer-mcp": "./dist/server.js"
+  },
+  "files": [
+    "dist",
+    "manifest.json"
+  ],
+  "scripts": {
+    "build": "bun build src/server.ts --outdir dist --target node --format esm --external knex --external pg --external mysql2 --external better-sqlite3 --external @modelcontextprotocol/* --external zod && INPUT=chart-app.html vite build",
+    "prepack": "bun run build",
+    "start": "node dist/server.js",
+    "dev": "bun src/server.ts"
+  },
+  "keywords": [
+    "mcp",
+    "database",
+    "sql",
+    "postgresql",
+    "mysql",
+    "sqlite",
+    "charts",
+    "schema-explorer"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.0.1",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "better-sqlite3": "^12.6.2",
+    "knex": "^3.1.0",
+    "mysql2": "^3.14.1",
+    "pg": "^8.16.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "recharts": "^3.7.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.2.0",
+    "@types/react": "^19.2.13",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-singlefile": "^2.3.0"
+  },
+  "trustedDependencies": [
+    "@modelcontextprotocol/ext-apps"
+  ]
+}
