@@ -20,6 +20,23 @@ import {
   getFullSchema,
 } from './introspection.js';
 
+// Normalize knex.raw() results across dialects
+function extractRows(result: any): Record<string, unknown>[] {
+  // MySQL returns [rows, fields] — check first since it's also an Array
+  if (Array.isArray(result) && result.length === 2 && Array.isArray(result[0]) && Array.isArray(result[1])) {
+    return result[0];
+  }
+  // PostgreSQL returns { rows: [...] }
+  if (result.rows && Array.isArray(result.rows)) {
+    return result.rows;
+  }
+  // SQLite returns array directly
+  if (Array.isArray(result)) {
+    return result;
+  }
+  return result;
+}
+
 console.error('DB Explorer MCP Server starting...');
 
 // Auto-connect from env var (lazy — triggered on first tool call that needs a connection)
@@ -184,21 +201,7 @@ server.tool(
     try {
       const knex = getKnex();
       const result = await knex.raw(sql);
-
-      // Normalize result across dialects
-      let rows: Record<string, unknown>[];
-      if (Array.isArray(result)) {
-        // SQLite returns array directly
-        rows = result;
-      } else if (result.rows) {
-        // PostgreSQL returns { rows: [...] }
-        rows = result.rows;
-      } else if (Array.isArray(result[0])) {
-        // MySQL returns [[rows], [fields]]
-        rows = result[0];
-      } else {
-        rows = result;
-      }
+      const rows = extractRows(result);
 
       const truncated = rows.length > MAX_QUERY_ROWS;
       const data = truncated ? rows.slice(0, MAX_QUERY_ROWS) : rows;
@@ -260,18 +263,7 @@ registerAppTool(
     try {
       const knex = getKnex();
       const result = await knex.raw(sql);
-
-      // Normalize result across dialects
-      let data: Record<string, unknown>[];
-      if (Array.isArray(result)) {
-        data = result;
-      } else if (result.rows) {
-        data = result.rows;
-      } else if (Array.isArray(result[0])) {
-        data = result[0];
-      } else {
-        data = result;
-      }
+      const data = extractRows(result);
 
       if (data.length === 0) {
         return { content: [{ type: 'text', text: 'Query returned no results' }], isError: true };
