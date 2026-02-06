@@ -1,8 +1,15 @@
 {
-  "manifest_version": "0.3",
+  "manifest_version": "0.4",
   "name": "db-explorer",
+  "display_name": "DB Explorer",
   "version": "1.0.0",
   "description": "Connect to any SQL database (PostgreSQL, MySQL, SQLite) and explore schemas, run queries, and visualize results with interactive charts.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/851-labs/db-explorer-mcp"
+  },
+  "license": "MIT",
+  "keywords": ["database", "sql", "postgresql", "mysql", "sqlite", "charts", "schema"],
   "author": {
     "name": "DB Explorer MCP"
   },
@@ -22,7 +29,8 @@
       "type": "string",
       "title": "Database Connection String",
       "description": "Connection string for your database (e.g. postgres://user:pass@host/db, mysql://user:pass@host/db, sqlite:///path/to/file.db). You can also connect at runtime using the connect tool.",
-      "required": false
+      "required": false,
+      "sensitive": true
     }
   },
   "tools": [
