@@ -117,6 +117,27 @@ export function getDialect(): Dialect {
   return currentDialect;
 }
 
+export async function query<T extends Record<string, unknown> = Record<string, unknown>>(
+  sql: string,
+  params?: unknown[]
+): Promise<T[]> {
+  const knex = getKnex();
+  const result = params ? await knex.raw(sql, params) : await knex.raw(sql);
+  // MySQL returns [rows, fields]
+  if (Array.isArray(result) && result.length === 2 && Array.isArray(result[0]) && Array.isArray(result[1])) {
+    return result[0] as T[];
+  }
+  // PostgreSQL returns { rows: [...] }
+  if (result.rows && Array.isArray(result.rows)) {
+    return result.rows as T[];
+  }
+  // SQLite returns array directly
+  if (Array.isArray(result)) {
+    return result as T[];
+  }
+  return result as T[];
+}
+
 export async function disconnect(): Promise<void> {
   if (knexInstance) {
     await knexInstance.destroy();

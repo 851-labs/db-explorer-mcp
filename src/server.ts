@@ -12,6 +12,7 @@ import * as path from 'path';
 import {
   connect as dbConnect,
   getKnex,
+  query,
   redactConnectionString,
 } from './database.js';
 import {
@@ -19,23 +20,6 @@ import {
   describeTable,
   getFullSchema,
 } from './introspection.js';
-
-// Normalize knex.raw() results across dialects
-function extractRows(result: any): Record<string, unknown>[] {
-  // MySQL returns [rows, fields] — check first since it's also an Array
-  if (Array.isArray(result) && result.length === 2 && Array.isArray(result[0]) && Array.isArray(result[1])) {
-    return result[0];
-  }
-  // PostgreSQL returns { rows: [...] }
-  if (result.rows && Array.isArray(result.rows)) {
-    return result.rows;
-  }
-  // SQLite returns array directly
-  if (Array.isArray(result)) {
-    return result;
-  }
-  return result;
-}
 
 console.error('DB Explorer MCP Server starting...');
 
@@ -199,9 +183,7 @@ server.tool(
     }
 
     try {
-      const knex = getKnex();
-      const result = await knex.raw(sql);
-      const rows = extractRows(result);
+      const rows = await query(sql);
 
       const truncated = rows.length > MAX_QUERY_ROWS;
       const data = truncated ? rows.slice(0, MAX_QUERY_ROWS) : rows;
@@ -261,9 +243,7 @@ registerAppTool(
     }
 
     try {
-      const knex = getKnex();
-      const result = await knex.raw(sql);
-      const data = extractRows(result);
+      const data = await query(sql);
 
       if (data.length === 0) {
         return { content: [{ type: 'text', text: 'Query returned no results' }], isError: true };

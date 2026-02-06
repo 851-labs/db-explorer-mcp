@@ -1,4 +1,4 @@
-import { getKnex, getDialect, type Dialect } from './database.js';
+import { getDialect, query, type Dialect } from './database.js';
 
 interface ColumnInfo {
   name: string;
@@ -35,8 +35,7 @@ interface TableSummary {
 // ===== List Tables =====
 
 async function listTablesPg(): Promise<TableSummary[]> {
-  const knex = getKnex();
-  const result = await knex.raw(`
+  const rows = await query<{ name: string; estimated_rows: string }>(`
     SELECT
       t.tablename AS name,
       COALESCE(c.reltuples, 0)::bigint AS estimated_rows
@@ -46,15 +45,14 @@ async function listTablesPg(): Promise<TableSummary[]> {
     WHERE t.schemaname = 'public'
     ORDER BY t.tablename
   `);
-  return result.rows.map((r: any) => ({
+  return rows.map((r) => ({
     name: r.name,
-    estimatedRows: Number(r.estimated_rows < 0 ? 0 : r.estimated_rows),
+    estimatedRows: Number(Number(r.estimated_rows) < 0 ? 0 : r.estimated_rows),
   }));
 }
 
 async function listTablesMysql(): Promise<TableSummary[]> {
-  const knex = getKnex();
-  const result = await knex.raw(`
+  const rows = await query<{ name: string; estimated_rows: number }>(`
     SELECT
       TABLE_NAME AS name,
       TABLE_ROWS AS estimated_rows
@@ -62,21 +60,19 @@ async function listTablesMysql(): Promise<TableSummary[]> {
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
     ORDER BY TABLE_NAME
   `);
-  const rows = result[0] || result;
-  return rows.map((r: any) => ({
-    name: r.name || r.TABLE_NAME,
-    estimatedRows: Number(r.estimated_rows || r.TABLE_ROWS || 0),
+  return rows.map((r) => ({
+    name: r.name,
+    estimatedRows: Number(r.estimated_rows || 0),
   }));
 }
 
 async function listTablesSqlite(): Promise<TableSummary[]> {
-  const knex = getKnex();
-  const tables = await knex.raw(
+  const tables = await query<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
   );
   const results: TableSummary[] = [];
   for (const t of tables) {
-    const count = await knex.raw(`SELECT COUNT(*) as cnt FROM "${t.name}"`);
+    const count = await query<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM "${t.name}"`);
     results.push({
       name: t.name,
       estimatedRows: count[0]?.cnt ?? 0,
@@ -110,10 +106,8 @@ export async function listTables(): Promise<string> {
 // ===== Describe Table =====
 
 async function describeTablePg(tableName: string): Promise<TableDescription> {
-  const knex = getKnex();
-
   // Columns
-  const cols = await knex.raw(`
+  const cols = await query<{ name: string; type: string; nullable: boolean; default_value: string | null; is_primary_key: boolean }>(`
     SELECT
       c.column_name AS name,
       c.data_type AS type,
@@ -132,7 +126,7 @@ async function describeTablePg(tableName: string): Promise<TableDescription> {
   `, [tableName, tableName]);
 
   // Foreign keys
-  const fks = await knex.raw(`
+  const fks = await query<{ column: string; referenced_table: string; referenced_column: string }>(`
     SELECT
       kcu.column_name AS "column",
       ccu.table_name AS referenced_table,
@@ -144,7 +138,7 @@ async function describeTablePg(tableName: string): Promise<TableDescription> {
   `, [tableName]);
 
   // Indexes
-  const idxs = await knex.raw(`
+  const idxs = await query<{ name: string; unique: boolean; columns: string[] }>(`
     SELECT
       i.relname AS name,
       ix.indisunique AS "unique",
@@ -159,19 +153,19 @@ async function describeTablePg(tableName: string): Promise<TableDescription> {
 
   return {
     name: tableName,
-    columns: cols.rows.map((r: any) => ({
+    columns: cols.map((r) => ({
       name: r.name,
       type: r.type,
       nullable: r.nullable,
       defaultValue: r.default_value,
       isPrimaryKey: r.is_primary_key,
     })),
-    foreignKeys: fks.rows.map((r: any) => ({
+    foreignKeys: fks.map((r) => ({
       column: r.column,
       referencedTable: r.referenced_table,
       referencedColumn: r.referenced_column,
     })),
-    indexes: idxs.rows.map((r: any) => ({
+    indexes: idxs.map((r) => ({
       name: r.name,
       columns: r.columns,
       unique: r.unique,
@@ -180,10 +174,8 @@ async function describeTablePg(tableName: string): Promise<TableDescription> {
 }
 
 async function describeTableMysql(tableName: string): Promise<TableDescription> {
-  const knex = getKnex();
-
   // Columns
-  const cols = await knex.raw(`
+  const colRows = await query<{ name: string; type: string; nullable: number; default_value: string | null; is_primary_key: number }>(`
     SELECT
       COLUMN_NAME AS name,
       COLUMN_TYPE AS type,
@@ -196,7 +188,7 @@ async function describeTableMysql(tableName: string): Promise<TableDescription> 
   `, [tableName]);
 
   // Foreign keys
-  const fks = await knex.raw(`
+  const fkRows = await query<{ column: string; referenced_table: string; referenced_column: string }>(`
     SELECT
       COLUMN_NAME AS \`column\`,
       REFERENCED_TABLE_NAME AS referenced_table,
@@ -207,7 +199,7 @@ async function describeTableMysql(tableName: string): Promise<TableDescription> 
   `, [tableName]);
 
   // Indexes
-  const idxs = await knex.raw(`
+  const idxRows = await query<{ name: string; unique: number; columns: string }>(`
     SELECT
       INDEX_NAME AS name,
       NOT NON_UNIQUE AS \`unique\`,
@@ -217,26 +209,22 @@ async function describeTableMysql(tableName: string): Promise<TableDescription> 
     GROUP BY INDEX_NAME, NON_UNIQUE
   `, [tableName]);
 
-  const colRows = cols[0] || cols;
-  const fkRows = fks[0] || fks;
-  const idxRows = idxs[0] || idxs;
-
   return {
     name: tableName,
-    columns: colRows.map((r: any) => ({
-      name: r.name || r.COLUMN_NAME,
-      type: r.type || r.COLUMN_TYPE,
-      nullable: Boolean(r.nullable || r.IS_NULLABLE === 'YES'),
-      defaultValue: r.default_value ?? r.COLUMN_DEFAULT ?? null,
-      isPrimaryKey: Boolean(r.is_primary_key || r.COLUMN_KEY === 'PRI'),
+    columns: colRows.map((r) => ({
+      name: r.name,
+      type: r.type,
+      nullable: Boolean(r.nullable),
+      defaultValue: r.default_value ?? null,
+      isPrimaryKey: Boolean(r.is_primary_key),
     })),
-    foreignKeys: fkRows.map((r: any) => ({
-      column: r.column || r.COLUMN_NAME,
-      referencedTable: r.referenced_table || r.REFERENCED_TABLE_NAME,
-      referencedColumn: r.referenced_column || r.REFERENCED_COLUMN_NAME,
+    foreignKeys: fkRows.map((r) => ({
+      column: r.column,
+      referencedTable: r.referenced_table,
+      referencedColumn: r.referenced_column,
     })),
-    indexes: idxRows.map((r: any) => ({
-      name: r.name || r.INDEX_NAME,
+    indexes: idxRows.map((r) => ({
+      name: r.name,
       columns: (r.columns || '').split(','),
       unique: Boolean(r.unique),
     })),
@@ -244,11 +232,9 @@ async function describeTableMysql(tableName: string): Promise<TableDescription> 
 }
 
 async function describeTableSqlite(tableName: string): Promise<TableDescription> {
-  const knex = getKnex();
-
   // Columns via PRAGMA
-  const pragmaCols = await knex.raw(`PRAGMA table_info("${tableName}")`);
-  const columns: ColumnInfo[] = pragmaCols.map((r: any) => ({
+  const pragmaCols = await query<{ name: string; type: string; notnull: number; dflt_value: string | null; pk: number }>(`PRAGMA table_info("${tableName}")`);
+  const columns: ColumnInfo[] = pragmaCols.map((r) => ({
     name: r.name,
     type: r.type || 'TEXT',
     nullable: r.notnull === 0,
@@ -257,21 +243,21 @@ async function describeTableSqlite(tableName: string): Promise<TableDescription>
   }));
 
   // Foreign keys
-  const pragmaFks = await knex.raw(`PRAGMA foreign_key_list("${tableName}")`);
-  const foreignKeys: ForeignKey[] = pragmaFks.map((r: any) => ({
+  const pragmaFks = await query<{ from: string; table: string; to: string }>(`PRAGMA foreign_key_list("${tableName}")`);
+  const foreignKeys: ForeignKey[] = pragmaFks.map((r) => ({
     column: r.from,
     referencedTable: r.table,
     referencedColumn: r.to,
   }));
 
   // Indexes
-  const pragmaIdxs = await knex.raw(`PRAGMA index_list("${tableName}")`);
+  const pragmaIdxs = await query<{ name: string; unique: number }>(`PRAGMA index_list("${tableName}")`);
   const indexes: IndexInfo[] = [];
   for (const idx of pragmaIdxs) {
-    const idxInfo = await knex.raw(`PRAGMA index_info("${idx.name}")`);
+    const idxInfo = await query<{ name: string }>(`PRAGMA index_info("${idx.name}")`);
     indexes.push({
       name: idx.name,
-      columns: idxInfo.map((c: any) => c.name),
+      columns: idxInfo.map((c) => c.name),
       unique: idx.unique === 1,
     });
   }
