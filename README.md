@@ -43,4 +43,8 @@ Or add manually to your Claude Desktop config:
 
 ## License
 
-MIT
+This project is released under the MIT License. See [LICENSE](LICENSE) for details.
+
+## Support
+
+If you like this project, please consider giving it a star.
