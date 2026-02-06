@@ -32,6 +32,30 @@ interface ChartConfig {
   multiSeries?: string[];
 }
 
+// Date formatting utilities
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2})?/;
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function looksLikeDates(data: Record<string, unknown>[], key: string): boolean {
+  const sample = data.slice(0, 3);
+  return sample.every(row => {
+    const v = row[key];
+    return typeof v === "string" && ISO_DATE_RE.test(v);
+  });
+}
+
+function formatDateTick(value: string): string {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return SHORT_MONTHS[d.getMonth()] + " " + d.getDate();
+}
+
+function formatDateTooltip(value: string): string {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return SHORT_MONTHS[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear();
+}
+
 const CHART_PALETTE = [
   "#e8885c",
   "#5ba3cf",
@@ -43,12 +67,13 @@ const CHART_PALETTE = [
   "#d4845f",
 ];
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label, isDate }: any) {
   if (!active || !payload?.length) return null;
+  const displayLabel = isDate && typeof label === "string" ? formatDateTooltip(label) : String(label);
   return e(
     "div",
     { className: "custom-tooltip" },
-    e("div", { className: "tooltip-label" }, String(label)),
+    e("div", { className: "tooltip-label" }, displayLabel),
     ...payload.map((p: any, i: number) =>
       e(
         "div",
@@ -70,6 +95,7 @@ function Chart({ config }: { config: ChartConfig }) {
   } = config;
 
   const seriesKeys = multiSeries || [dataKey];
+  const isDate = looksLikeDates(data, xAxisKey);
 
   const commonProps = {
     data,
@@ -144,6 +170,7 @@ function Chart({ config }: { config: ChartConfig }) {
         ...axisProps,
         dataKey: xAxisKey,
         interval: "preserveStartEnd",
+        ...(isDate ? { tickFormatter: formatDateTick } : {}),
       }),
       e(YAxis, {
         ...axisProps,
@@ -151,7 +178,7 @@ function Chart({ config }: { config: ChartConfig }) {
           v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + "k" : String(v),
         width: 45,
       }),
-      e(Tooltip, { content: e(CustomTooltip as any), cursor: { fill: "var(--muted)" } }),
+      e(Tooltip, { content: e(CustomTooltip as any, { isDate }), cursor: { fill: "var(--muted)" } }),
       seriesKeys.length > 1 ? e(Legend, { iconSize: 8 }) : null,
       ...seriesKeys.map((key, i) => {
         const color = CHART_PALETTE[i % CHART_PALETTE.length];
